@@ -637,7 +637,10 @@ export function UsersPage() {
           </div>
         )}
       </div>
+        </>
+      )}
 
+      {/* Dialogs - shared between both views */}
       <UserFormDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -666,8 +669,6 @@ export function UsersPage() {
         }
         loading={deleting}
       />
-        </>
-      )}
     </div>
   );
 }
