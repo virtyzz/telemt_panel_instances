@@ -695,10 +695,7 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 	})))
 
 	// Logs
-	var firstInst *instance.Instance
-	if s.inst != nil {
-		firstInst = s.getFirstInstance()
-	}
+	firstInst = s.getFirstInstance()
 	serviceName := ""
 	containerName := ""
 	if firstInst != nil {
