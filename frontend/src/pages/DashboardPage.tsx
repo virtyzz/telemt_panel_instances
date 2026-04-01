@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MetricCard } from '@/components/MetricCard';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -7,8 +8,11 @@ import { useWsSubscription, useEndpoint } from '@/hooks/useWebSocket';
 import { usePolling } from '@/hooks/usePolling';
 import { telemt, instancesApi } from '@/lib/api';
 import { useCurrentInstance } from '@/hooks/useCurrentInstance';
+import { useInstances } from '@/hooks/useInstances.tsx';
+import { useAllInstancesDashboard } from '@/hooks/useAllInstancesDashboard';
+import { InstanceCard } from '@/components/InstanceCard';
 import { formatUptime, formatNumber, formatBytes } from '@/lib/utils';
-import { Activity, Wifi, WifiOff, Clock, Users, ArrowUpDown, Globe } from 'lucide-react';
+import { Activity, Wifi, WifiOff, Clock, Users, ArrowUpDown, Globe, LayoutGrid, List } from 'lucide-react';
 import { useMemo } from 'react';
 
 interface HealthData {
@@ -42,8 +46,15 @@ interface UserTrafficData {
 
 const ENDPOINTS = ['/v1/health', '/v1/stats/summary', '/v1/system/info', '/v1/runtime/gates'];
 
+type ViewMode = 'single' | 'all';
+
 export function DashboardPage() {
+  const [viewMode, setViewMode] = useState<ViewMode>('single');
   const { currentInstance, api, hasInstance, loading: instanceLoading } = useCurrentInstance();
+  const { instances: instanceList } = useInstances();
+  const allInstancesData = useAllInstancesDashboard();
+
+  // Single instance mode (existing behavior)
   const { data: wsData, errors, connected, refresh } = useWsSubscription('dashboard', ENDPOINTS, 5, currentInstance || undefined);
 
   const health = useEndpoint<HealthData>(wsData, '/v1/health', currentInstance || undefined);
@@ -81,9 +92,68 @@ export function DashboardPage() {
     );
   }
 
+  // All instances view
+  if (viewMode === 'all') {
+    return (
+      <div>
+        <Header 
+          title="Dashboard" 
+          refreshing={!allInstancesData.loading} 
+          onRefresh={allInstancesData.refresh} 
+          extraAction={
+            <button
+              onClick={() => setViewMode('single')}
+              className="p-2 hover:bg-surface-hover rounded-lg transition-colors"
+              title="Switch to single instance view"
+            >
+              <List size={18} className="text-text-secondary" />
+            </button>
+          }
+        />
+
+        <div className="p-4 lg:p-6">
+          {/* View mode toggle info */}
+          <div className="mb-4 flex items-center gap-2 text-sm text-text-secondary">
+            <LayoutGrid size={16} />
+            <span>Showing all {instanceList.length} instance(s)</span>
+          </div>
+
+          {/* Instance cards grid */}
+          {allInstancesData.loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-text-secondary">Loading all instances...</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
+              {allInstancesData.instances.map(instance => (
+                <InstanceCard key={instance.name} instance={instance} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Single instance view (existing behavior)
   return (
     <div>
-      <Header title="Dashboard" refreshing={!connected} onRefresh={refresh} />
+      <Header 
+        title="Dashboard" 
+        refreshing={!connected} 
+        onRefresh={refresh}
+        extraAction={
+          instanceList.length > 1 && (
+            <button
+              onClick={() => setViewMode('all')}
+              className="p-2 hover:bg-surface-hover rounded-lg transition-colors"
+              title="View all instances"
+            >
+              <LayoutGrid size={18} className="text-text-secondary" />
+            </button>
+          )
+        }
+      />
 
       <div className="p-4 lg:p-6 space-y-4 lg:space-y-6">
         {firstError && <ErrorAlert message={firstError} onRetry={refresh} />}
