@@ -14,20 +14,21 @@ import { telemt, panelApi, ApiError, instancesApi } from '@/lib/api';
 import { useCurrentInstance } from '@/hooks/useCurrentInstance';
 import { useInstances } from '@/hooks/useInstances.tsx';
 import { useViewMode } from '@/hooks/useViewMode';
+import { useAllInstancesUsers } from '@/hooks/useAllInstancesUsers';
 import { Link } from 'react-router-dom';
 import { Copy, Plus, Pencil, Trash2, Check, ArrowUp, ArrowDown, ArrowUpDown, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 
-type SortKey = 'username' | 'current_connections' | 'active_unique_ips' | 'total_octets' | 'expiration_rfc3339';
-type SortDir = 'asc' | 'desc';
+export type SortKey = 'username' | 'current_connections' | 'active_unique_ips' | 'total_octets' | 'expiration_rfc3339';
+export type SortDir = 'asc' | 'desc';
 
-interface UserLinks {
+export interface UserLinks {
   classic?: string[];
   secure?: string[];
   tls?: string[];
 }
 
-interface UserInfo {
+export interface UserInfo {
   username: string;
   user_ad_tag?: string;
   max_tcp_conns?: number;
@@ -288,7 +289,7 @@ export function UsersPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {allInstancesUsers.users.map((user, idx) => (
+                {allInstancesUsers.users.map((user: UserInfo & { instanceName?: string }, idx: number) => (
                   <UserCard
                     key={`${user.instanceName || 'default'}:${user.username}:${idx}`}
                     user={user}
@@ -296,7 +297,7 @@ export function UsersPage() {
                       setEditUser({ username } as UserInfo);
                       setCreateOpen(true);
                     }}
-                    onDelete={(username) => setDeleteUser(username)}
+                    onDelete={(username) => setDeleteUser({ username, instanceName: user.instanceName })}
                     onCopy={async (text, label) => {
                       try {
                         if (navigator.clipboard) {
@@ -493,13 +494,13 @@ export function UsersPage() {
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
                                 <button
-                                  onClick={() => setEditUser(u)}
+                                  onClick={() => setEditUser({ ...u })}
                                   className="p-1.5 rounded text-text-secondary hover:text-accent hover:bg-surface-hover"
                                 >
                                   <Pencil size={14} />
                                 </button>
                                 <button
-                                  onClick={() => setDeleteUser(u.username)}
+                                  onClick={() => setDeleteUser({ username: u.username })}
                                   className="p-1.5 rounded text-text-secondary hover:text-danger hover:bg-surface-hover"
                                 >
                                   <Trash2 size={14} />
@@ -532,13 +533,13 @@ export function UsersPage() {
                         <Link to={`/users/${u.username}`} className="font-medium text-accent hover:underline">{u.username}</Link>
                         <div className="flex gap-1">
                           <button
-                            onClick={() => setEditUser(u)}
+                            onClick={() => setEditUser({ ...u })}
                             className="p-1.5 rounded text-text-secondary hover:text-accent hover:bg-surface-hover"
                           >
                             <Pencil size={14} />
                           </button>
                           <button
-                            onClick={() => setDeleteUser(u.username)}
+                            onClick={() => setDeleteUser({ username: u.username })}
                             className="p-1.5 rounded text-text-secondary hover:text-danger hover:bg-surface-hover"
                           >
                             <Trash2 size={14} />

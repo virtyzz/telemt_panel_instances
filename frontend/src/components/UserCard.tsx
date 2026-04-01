@@ -15,9 +15,9 @@ interface UserCardProps {
 function collectLinksFlat(links?: UserLinks): Array<{ url: string; label: string }> {
   const result: Array<{ url: string; label: string }> = [];
   if (!links) return result;
-  if (links.classic) links.classic.forEach(url => result.push({ url, label: 'Classic' }));
-  if (links.secure) links.secure.forEach(url => result.push({ url, label: 'Secure' }));
-  if (links.tls) links.tls.forEach(url => result.push({ url, label: 'TLS' }));
+  if (links.classic) links.classic.forEach((url: string) => result.push({ url, label: 'Classic' }));
+  if (links.secure) links.secure.forEach((url: string) => result.push({ url, label: 'Secure' }));
+  if (links.tls) links.tls.forEach((url: string) => result.push({ url, label: 'TLS' }));
   return result;
 }
 
