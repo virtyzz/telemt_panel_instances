@@ -341,334 +341,334 @@ export function UsersPage() {
             }
           />
 
-      <div className="p-4 lg:p-6 space-y-4">
-        {error && <ErrorAlert message={error.message} onRetry={refresh} />}
-        {actionError && <ErrorAlert message={actionError} />}
+          <div className="p-4 lg:p-6 space-y-4">
+            {error && <ErrorAlert message={error.message} onRetry={refresh} />}
+            {actionError && <ErrorAlert message={actionError} />}
 
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-          <div className="relative flex-1 max-w-sm">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-surface text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent/50"
-            />
-          </div>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus size={16} className="mr-1.5" />
-            <span className="hidden sm:inline">Create User</span>
-            <span className="sm:hidden">Create</span>
-          </Button>
-        </div>
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+              <div className="relative flex-1 max-w-sm">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={search}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-surface text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-accent/50"
+                />
+              </div>
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus size={16} className="mr-1.5" />
+                <span className="hidden sm:inline">Create User</span>
+                <span className="sm:hidden">Create</span>
+              </Button>
+            </div>
 
-        {/* Mobile Sort Bar */}
-        <div className="lg:hidden flex items-center justify-between gap-2 bg-surface p-2 sm:p-3 rounded-lg border border-border">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-sm font-medium text-text-secondary whitespace-nowrap">Sort by:</span>
-            <select
-              value={sortKey}
-              onChange={(e) => toggleSort(e.target.value as SortKey)}
-              aria-label="Sort by"
-              className="flex-1 min-w-0 bg-background text-text-primary rounded-md px-2 py-1.5 text-sm border border-border focus:border-accent focus:outline-none"
-            >
-              <option value="username">Username</option>
-              <option value="current_connections">Connections</option>
-              <option value="active_unique_ips">Active IPs</option>
-              <option value="total_octets">Traffic</option>
-              <option value="expiration_rfc3339">Expiration</option>
-            </select>
-          </div>
-          <button
-            onClick={() => toggleSort(sortKey)}
-            aria-label={sortDir === 'asc' ? 'Sort Descending' : 'Sort Ascending'}
-            title={sortDir === 'asc' ? 'Sort Descending' : 'Sort Ascending'}
-            className="p-1.5 rounded-md border border-border bg-background hover:bg-surface-hover text-text-secondary transition-colors flex-shrink-0"
-          >
-            {sortDir === 'asc' ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
-          </button>
-        </div>
+            {/* Mobile Sort Bar */}
+            <div className="lg:hidden flex items-center justify-between gap-2 bg-surface p-2 sm:p-3 rounded-lg border border-border">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-sm font-medium text-text-secondary whitespace-nowrap">Sort by:</span>
+                <select
+                  value={sortKey}
+                  onChange={(e) => toggleSort(e.target.value as SortKey)}
+                  aria-label="Sort by"
+                  className="flex-1 min-w-0 bg-background text-text-primary rounded-md px-2 py-1.5 text-sm border border-border focus:border-accent focus:outline-none"
+                >
+                  <option value="username">Username</option>
+                  <option value="current_connections">Connections</option>
+                  <option value="active_unique_ips">Active IPs</option>
+                  <option value="total_octets">Traffic</option>
+                  <option value="expiration_rfc3339">Expiration</option>
+                </select>
+              </div>
+              <button
+                onClick={() => toggleSort(sortKey)}
+                aria-label={sortDir === 'asc' ? 'Sort Descending' : 'Sort Ascending'}
+                title={sortDir === 'asc' ? 'Sort Descending' : 'Sort Ascending'}
+                className="p-1.5 rounded-md border border-border bg-background hover:bg-surface-hover text-text-secondary transition-colors flex-shrink-0"
+              >
+                {sortDir === 'asc' ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
+              </button>
+            </div>
 
-        {/* Desktop Table */}
-        <div className="hidden lg:block border border-border rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('username')}>
-                    <span className="inline-flex items-center gap-1">
-                      Username
-                      {sortKey === 'username' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
-                    </span>
-                  </TableHead>
-                  <TableHead>Proxy Links</TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('current_connections')}>
-                    <span className="inline-flex items-center gap-1">
-                      Connections
-                      {sortKey === 'current_connections' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
-                    </span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('active_unique_ips')}>
-                    <span className="inline-flex items-center gap-1">
-                      Active IPs
-                      {sortKey === 'active_unique_ips' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
-                    </span>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('total_octets')}>
-                    <span className="inline-flex items-center gap-1">
-                      Traffic
-                      {sortKey === 'total_octets' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
-                    </span>
-                  </TableHead>
-                  <TableHead>Quota</TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('expiration_rfc3339')}>
-                    <span className="inline-flex items-center gap-1">
-                      Expiration
-                      {sortKey === 'expiration_rfc3339' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
-                    </span>
-                  </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pagedUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center text-text-secondary py-8">
-                      {search ? 'No users found' : 'No users configured'}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  pagedUsers.map((u) => {
-                    const allLinks = collectLinks(u.links, u.username);
-                    const hasConns = u.current_connections > 0;
-
-                    return (
-                      <TableRow key={u.username} className={hasConns ? 'bg-success/5 hover:bg-success/10' : ''}>
-                        <TableCell className="font-medium">
-                          <Link to={`/users/${u.username}`} className="text-accent hover:underline">{u.username}</Link>
-                        </TableCell>
-                        <TableCell>
-                          {allLinks.length > 0 ? (
-                            <div className="flex flex-col gap-1">
-                              {allLinks.map((link, i) => (
-                                <div key={i} className="flex items-center gap-1">
-                                  <CopyButton text={link.url} label={link.label} />
-                                  <CopyButton text={link.url.replace('tg://proxy', 'https://t.me/proxy')} label="t.me" />
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-text-secondary text-xs">No links</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={u.current_connections > 0 ? 'default' : 'outline'}>
-                            {u.current_connections}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm">{u.active_unique_ips}</span>
-                          {u.max_unique_ips != null && u.max_unique_ips > 0 && (
-                            <span className="text-xs text-text-secondary ml-1">/ {u.max_unique_ips}</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{formatBytes(u.total_octets)}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {u.data_quota_bytes ? (
-                            <Badge variant="outline">{formatBytes(u.data_quota_bytes)}</Badge>
-                          ) : (
-                            <span className="text-text-secondary">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {u.expiration_rfc3339 ? (
-                            <span className="text-xs">{new Date(u.expiration_rfc3339).toLocaleDateString()}</span>
-                          ) : (
-                            <span className="text-text-secondary">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <button
-                              onClick={() => setEditUser(u)}
-                              className="p-1.5 rounded text-text-secondary hover:text-accent hover:bg-surface-hover"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              onClick={() => setDeleteUser(u.username)}
-                              className="p-1.5 rounded text-text-secondary hover:text-danger hover:bg-surface-hover"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
+            {/* Desktop Table */}
+            <div className="hidden lg:block border border-border rounded-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('username')}>
+                        <span className="inline-flex items-center gap-1">
+                          Username
+                          {sortKey === 'username' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
+                        </span>
+                      </TableHead>
+                      <TableHead>Proxy Links</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('current_connections')}>
+                        <span className="inline-flex items-center gap-1">
+                          Connections
+                          {sortKey === 'current_connections' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
+                        </span>
+                      </TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('active_unique_ips')}>
+                        <span className="inline-flex items-center gap-1">
+                          Active IPs
+                          {sortKey === 'active_unique_ips' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
+                        </span>
+                      </TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('total_octets')}>
+                        <span className="inline-flex items-center gap-1">
+                          Traffic
+                          {sortKey === 'total_octets' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
+                        </span>
+                      </TableHead>
+                      <TableHead>Quota</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('expiration_rfc3339')}>
+                        <span className="inline-flex items-center gap-1">
+                          Expiration
+                          {sortKey === 'expiration_rfc3339' ? (sortDir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="text-text-secondary/40" />}
+                        </span>
+                      </TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pagedUsers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-text-secondary py-8">
+                          {search ? 'No users found' : 'No users configured'}
                         </TableCell>
                       </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
+                    ) : (
+                      pagedUsers.map((u) => {
+                        const allLinks = collectLinks(u.links, u.username);
+                        const hasConns = u.current_connections > 0;
 
-        {/* Mobile Cards */}
-        <div className="lg:hidden space-y-3">
-          {pagedUsers.length === 0 ? (
-            <div className="text-center text-text-secondary py-8 bg-surface border border-border rounded-lg">
-              {search ? 'No users found' : 'No users configured'}
-            </div>
-          ) : (
-            pagedUsers.map((u) => {
-              const allLinks = collectLinks(u.links, u.username);
-              const hasConns = u.current_connections > 0;
-
-              return (
-                <div key={u.username} className={`bg-surface border rounded-lg p-3 space-y-3 ${hasConns ? 'border-success/40 bg-success/5' : 'border-border'}`}>
-                  <div className="flex items-center justify-between">
-                    <Link to={`/users/${u.username}`} className="font-medium text-accent hover:underline">{u.username}</Link>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => setEditUser(u)}
-                        className="p-1.5 rounded text-text-secondary hover:text-accent hover:bg-surface-hover"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteUser(u.username)}
-                        className="p-1.5 rounded text-text-secondary hover:text-danger hover:bg-surface-hover"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {allLinks.length > 0 && (
-                    <div className="space-y-1">
-                      <div className="text-xs text-text-secondary">Proxy Links</div>
-                      {allLinks.map((link, i) => (
-                        <div key={i} className="flex items-center gap-1">
-                          <CopyButton text={link.url} label={link.label} />
-                          <CopyButton text={link.url.replace('tg://proxy', 'https://t.me/proxy')} label="t.me" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <div className="text-text-secondary">Connections</div>
-                      <Badge variant={u.current_connections > 0 ? 'default' : 'outline'} className="mt-1">
-                        {u.current_connections}
-                      </Badge>
-                    </div>
-                    <div>
-                      <div className="text-text-secondary">Active IPs</div>
-                      <div className="mt-1">
-                        {u.active_unique_ips}
-                        {u.max_unique_ips != null && u.max_unique_ips > 0 && (
-                          <span className="text-text-secondary ml-1">/ {u.max_unique_ips}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-text-secondary">Traffic</div>
-                      <Badge variant="outline" className="mt-1">{formatBytes(u.total_octets)}</Badge>
-                    </div>
-                    <div>
-                      <div className="text-text-secondary">Quota</div>
-                      <div className="mt-1">
-                        {u.data_quota_bytes ? (
-                          <Badge variant="outline">{formatBytes(u.data_quota_bytes)}</Badge>
-                        ) : (
-                          <span className="text-text-secondary">-</span>
-                        )}
-                      </div>
-                    </div>
-                    {u.expiration_rfc3339 && (
-                      <div className="col-span-2">
-                        <div className="text-text-secondary">Expiration</div>
-                        <div className="mt-1">{new Date(u.expiration_rfc3339).toLocaleDateString()}</div>
-                      </div>
+                        return (
+                          <TableRow key={u.username} className={hasConns ? 'bg-success/5 hover:bg-success/10' : ''}>
+                            <TableCell className="font-medium">
+                              <Link to={`/users/${u.username}`} className="text-accent hover:underline">{u.username}</Link>
+                            </TableCell>
+                            <TableCell>
+                              {allLinks.length > 0 ? (
+                                <div className="flex flex-col gap-1">
+                                  {allLinks.map((link, i) => (
+                                    <div key={i} className="flex items-center gap-1">
+                                      <CopyButton text={link.url} label={link.label} />
+                                      <CopyButton text={link.url.replace('tg://proxy', 'https://t.me/proxy')} label="t.me" />
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-text-secondary text-xs">No links</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={u.current_connections > 0 ? 'default' : 'outline'}>
+                                {u.current_connections}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm">{u.active_unique_ips}</span>
+                              {u.max_unique_ips != null && u.max_unique_ips > 0 && (
+                                <span className="text-xs text-text-secondary ml-1">/ {u.max_unique_ips}</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{formatBytes(u.total_octets)}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              {u.data_quota_bytes ? (
+                                <Badge variant="outline">{formatBytes(u.data_quota_bytes)}</Badge>
+                              ) : (
+                                <span className="text-text-secondary">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {u.expiration_rfc3339 ? (
+                                <span className="text-xs">{new Date(u.expiration_rfc3339).toLocaleDateString()}</span>
+                              ) : (
+                                <span className="text-text-secondary">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <button
+                                  onClick={() => setEditUser(u)}
+                                  className="p-1.5 rounded text-text-secondary hover:text-accent hover:bg-surface-hover"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteUser(u.username)}
+                                  className="p-1.5 rounded text-text-secondary hover:text-danger hover:bg-surface-hover"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
 
-        {/* Pagination */}
-        {sortedUsers.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-text-secondary">
-            <div className="flex items-center gap-2">
-              <span>Show</span>
-              <select
-                value={perPage}
-                onChange={(e) => handlePerPageChange(Number(e.target.value))}
-                className="rounded border border-border bg-surface px-2 py-1 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50"
-              >
-                {[10, 25, 50, 100].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-              <span>of {sortedUsers.length}{search && ` (filtered from ${users?.length ?? 0})`}</span>
+            {/* Mobile Cards */}
+            <div className="lg:hidden space-y-3">
+              {pagedUsers.length === 0 ? (
+                <div className="text-center text-text-secondary py-8 bg-surface border border-border rounded-lg">
+                  {search ? 'No users found' : 'No users configured'}
+                </div>
+              ) : (
+                pagedUsers.map((u) => {
+                  const allLinks = collectLinks(u.links, u.username);
+                  const hasConns = u.current_connections > 0;
+
+                  return (
+                    <div key={u.username} className={`bg-surface border rounded-lg p-3 space-y-3 ${hasConns ? 'border-success/40 bg-success/5' : 'border-border'}`}>
+                      <div className="flex items-center justify-between">
+                        <Link to={`/users/${u.username}`} className="font-medium text-accent hover:underline">{u.username}</Link>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setEditUser(u)}
+                            className="p-1.5 rounded text-text-secondary hover:text-accent hover:bg-surface-hover"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteUser(u.username)}
+                            className="p-1.5 rounded text-text-secondary hover:text-danger hover:bg-surface-hover"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {allLinks.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-xs text-text-secondary">Proxy Links</div>
+                          {allLinks.map((link, i) => (
+                            <div key={i} className="flex items-center gap-1">
+                              <CopyButton text={link.url} label={link.label} />
+                              <CopyButton text={link.url.replace('tg://proxy', 'https://t.me/proxy')} label="t.me" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <div className="text-text-secondary">Connections</div>
+                          <Badge variant={u.current_connections > 0 ? 'default' : 'outline'} className="mt-1">
+                            {u.current_connections}
+                          </Badge>
+                        </div>
+                        <div>
+                          <div className="text-text-secondary">Active IPs</div>
+                          <div className="mt-1">
+                            {u.active_unique_ips}
+                            {u.max_unique_ips != null && u.max_unique_ips > 0 && (
+                              <span className="text-text-secondary ml-1">/ {u.max_unique_ips}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-text-secondary">Traffic</div>
+                          <Badge variant="outline" className="mt-1">{formatBytes(u.total_octets)}</Badge>
+                        </div>
+                        <div>
+                          <div className="text-text-secondary">Quota</div>
+                          <div className="mt-1">
+                            {u.data_quota_bytes ? (
+                              <Badge variant="outline">{formatBytes(u.data_quota_bytes)}</Badge>
+                            ) : (
+                              <span className="text-text-secondary">-</span>
+                            )}
+                          </div>
+                        </div>
+                        {u.expiration_rfc3339 && (
+                          <div className="col-span-2">
+                            <div className="text-text-secondary">Expiration</div>
+                            <div className="mt-1">{new Date(u.expiration_rfc3339).toLocaleDateString()}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={safePage <= 1}
-                className="p-1.5 rounded border border-border bg-surface hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span>{safePage} / {totalPages}</span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={safePage >= totalPages}
-                className="p-1.5 rounded border border-border bg-surface hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
+
+            {/* Pagination */}
+            {sortedUsers.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-text-secondary">
+                <div className="flex items-center gap-2">
+                  <span>Show</span>
+                  <select
+                    value={perPage}
+                    onChange={(e) => handlePerPageChange(Number(e.target.value))}
+                    className="rounded border border-border bg-surface px-2 py-1 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50"
+                  >
+                    {[10, 25, 50, 100].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                  <span>of {sortedUsers.length}{search && ` (filtered from ${users?.length ?? 0})`}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    className="p-1.5 rounded border border-border bg-surface hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span>{safePage} / {totalPages}</span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage >= totalPages}
+                    className="p-1.5 rounded border border-border bg-surface hover:bg-surface-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Dialogs */}
+          <UserFormDialog
+            open={createOpen}
+            onClose={() => setCreateOpen(false)}
+            onSubmit={handleCreate}
+            initialData={userDefaults}
+            mode="create"
+          />
+
+          <UserFormDialog
+            open={!!editUser}
+            onClose={() => setEditUser(null)}
+            onSubmit={handleEdit}
+            initialData={editUser ?? undefined}
+            mode="edit"
+          />
+
+          <ConfirmDialog
+            open={!!deleteUser}
+            onClose={() => setDeleteUser(null)}
+            onConfirm={handleDelete}
+            title="Delete User"
+            message={
+              deleteUser?.instanceName
+                ? `Are you sure you want to delete user "${deleteUser.username}" from ${deleteUser.instanceName}? This action cannot be undone.`
+                : `Are you sure you want to delete user "${deleteUser?.username}"? This action cannot be undone.`
+            }
+            loading={deleting}
+          />
         </>
       )}
-      </div>
-
-      {/* Dialogs - shared between both views */}
-      <UserFormDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onSubmit={handleCreate}
-        initialData={userDefaults}
-        mode="create"
-      />
-
-      <UserFormDialog
-        open={!!editUser}
-        onClose={() => setEditUser(null)}
-        onSubmit={handleEdit}
-        initialData={editUser ?? undefined}
-        mode="edit"
-      />
-
-      <ConfirmDialog
-        open={!!deleteUser}
-        onClose={() => setDeleteUser(null)}
-        onConfirm={handleDelete}
-        title="Delete User"
-        message={
-          deleteUser?.instanceName
-            ? `Are you sure you want to delete user "${deleteUser.username}" from ${deleteUser.instanceName}? This action cannot be undone.`
-            : `Are you sure you want to delete user "${deleteUser?.username}"? This action cannot be undone.`
-        }
-        loading={deleting}
-      />
     </div>
   );
 }
