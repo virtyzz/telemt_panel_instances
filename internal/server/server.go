@@ -327,6 +327,11 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 	})))
 
 	// WebSocket endpoint (auth checked via cookie on upgrade)
+	// Supports multi-instance by parsing "instance:endpoint" format
+	wsHandler := ws.NewHandler(s.inst)
+	mux.Handle("/api/ws", auth.RequireAuth(jwtSecret, wsHandler))
+
+	// Update endpoints - uses first instance for legacy reasons
 	firstInst := s.getFirstInstance()
 	wsURL := ""
 	wsAuth := ""
@@ -334,16 +339,12 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 		wsURL = firstInst.URL
 		wsAuth = firstInst.AuthHeader
 	}
-	wsHandler := ws.NewHandler(wsURL, wsAuth)
-	mux.Handle("/api/ws", auth.RequireAuth(jwtSecret, wsHandler))
-
-	// Update endpoints
 	upd := updater.New(
 		wsURL,
 		firstInst.BinaryPath,
 		firstInst.ServiceName,
 		firstInst.GithubRepo,
-		firstInst.AuthHeader,
+		wsAuth,
 		s.cfg.DataDir,
 		s.cfg.Panel.MaxNewerReleases,
 		s.cfg.Panel.MaxOlderReleases,

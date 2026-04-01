@@ -77,13 +77,23 @@ export function useWsProvider(): WsContextValue {
       }
     }
 
-    // Send first subscription (server handles one at a time)
-    const firstGroup = byInstanceAndInterval.entries().next().value;
-    if (firstGroup) {
+    // Send all subscriptions (server will use the last one)
+    // Note: Server currently handles one subscription at a time
+    // Send the combined list of all endpoints
+    const allEndpoints: string[] = [];
+    let minInterval = Number.MAX_SAFE_INTEGER;
+    for (const group of byInstanceAndInterval.values()) {
+      allEndpoints.push(...group.endpoints);
+      if (group.interval < minInterval) {
+        minInterval = group.interval;
+      }
+    }
+
+    if (allEndpoints.length > 0) {
       ws.send(JSON.stringify({
         type: 'subscribe',
-        endpoints: firstGroup[1].endpoints,
-        interval: firstGroup[1].interval,
+        endpoints: allEndpoints,
+        interval: minInterval,
       }));
     }
   }, [getAggregated]);

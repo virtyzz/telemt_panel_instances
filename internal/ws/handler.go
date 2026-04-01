@@ -6,10 +6,12 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/telemt/telemt-panel/internal/instance"
 )
 
 func removeProtocol(rawURL string) (string, error) {
@@ -40,7 +42,7 @@ var upgrader = websocket.Upgrader{
 // ClientMessage is sent by the browser to subscribe to endpoints.
 type ClientMessage struct {
 	Type      string   `json:"type"`                // "subscribe"
-	Endpoints []string `json:"endpoints,omitempty"` // e.g. ["/v1/health", "/v1/stats/summary"]
+	Endpoints []string `json:"endpoints,omitempty"` // e.g. ["/v1/health", "/v1/stats/summary"] or ["Moscow:/v1/health"]
 	Interval  int      `json:"interval,omitempty"`  // poll interval in seconds (default 5)
 }
 
@@ -48,6 +50,7 @@ type ClientMessage struct {
 type ServerMessage struct {
 	Type      string      `json:"type"` // "data" or "error"
 	Endpoint  string      `json:"endpoint"`
+	Instance  string      `json:"instance,omitempty"` // Instance name for multi-instance support
 	Data      interface{} `json:"data,omitempty"`
 	Error     string      `json:"error,omitempty"`
 	Timestamp int64       `json:"timestamp"`
@@ -55,20 +58,32 @@ type ServerMessage struct {
 
 // Handler manages WebSocket connections. It polls Telemt API server-side
 // and pushes results to the connected client.
+// Supports multi-instance by parsing "instance:endpoint" format.
 type Handler struct {
-	telemtURL  string
-	authHeader string
-	client     *http.Client
+	instMgr *instance.Manager
+	client  *http.Client
 }
 
-func NewHandler(telemtURL, authHeader string) *Handler {
+func NewHandler(instMgr *instance.Manager) *Handler {
 	return &Handler{
-		telemtURL:  telemtURL,
-		authHeader: authHeader,
+		instMgr: instMgr,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 	}
+}
+
+// parseEndpoint splits "instance:endpoint" format into instance name and endpoint path.
+// If no instance prefix, returns empty instance name (legacy mode).
+func parseEndpoint(fullEndpoint string) (instanceName, endpoint string) {
+	if idx := strings.Index(fullEndpoint, ":"); idx != -1 {
+		// Check if this looks like "instance:/path" (instance name before colon, path after)
+		remainder := fullEndpoint[idx+1:]
+		if strings.HasPrefix(remainder, "/") {
+			return fullEndpoint[:idx], remainder
+		}
+	}
+	return "", fullEndpoint
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -97,16 +112,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Poll a single Telemt endpoint and push results
-	pollEndpoint := func(endpoint string, interval time.Duration, stop chan struct{}) {
+	pollEndpoint := func(instanceName, endpoint string, interval time.Duration, stop chan struct{}) {
 		// Fetch immediately on subscribe
-		h.fetchAndSend(endpoint, send)
+		h.fetchAndSend(instanceName, endpoint, send)
 
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				h.fetchAndSend(endpoint, send)
+				h.fetchAndSend(instanceName, endpoint, send)
 			case <-stop:
 				return
 			case <-stopCh:
@@ -149,12 +164,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				interval = 60 * time.Second
 			}
 
-			for _, ep := range msg.Endpoints {
+			for _, fullEp := range msg.Endpoints {
+				instanceName, endpoint := parseEndpoint(fullEp)
 				stop := make(chan struct{})
+				key := fullEp // Use full endpoint as key
 				mu.Lock()
-				cancelMap[ep] = stop
+				cancelMap[key] = stop
 				mu.Unlock()
-				go pollEndpoint(ep, interval, stop)
+				go pollEndpoint(instanceName, endpoint, interval, stop)
 			}
 		}
 	}
@@ -162,26 +179,68 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	close(stopCh)
 }
 
-func (h *Handler) fetchAndSend(endpoint string, send func(ServerMessage)) {
-	req, err := http.NewRequest("GET", h.telemtURL+endpoint, nil)
+func (h *Handler) fetchAndSend(instanceName, endpoint string, send func(ServerMessage)) {
+	// Get instance from manager
+	var inst *instance.Instance
+	if instanceName != "" {
+		inst = h.instMgr.Get(instanceName)
+		if inst == nil {
+			send(ServerMessage{
+				Type:     "error",
+				Endpoint: endpoint,
+				Instance: instanceName,
+				Error:    "instance not found: " + instanceName,
+			})
+			return
+		}
+	} else {
+		// Legacy mode: use first instance
+		instances := h.instMgr.GetAll()
+		if len(instances) == 0 {
+			send(ServerMessage{
+				Type:     "error",
+				Endpoint: endpoint,
+				Error:    "no instances configured",
+			})
+			return
+		}
+		inst = instances[0]
+	}
+
+	req, err := http.NewRequest("GET", inst.URL+endpoint, nil)
 	if err != nil {
-		send(ServerMessage{Type: "error", Endpoint: endpoint, Error: err.Error()})
+		send(ServerMessage{
+			Type:     "error",
+			Endpoint: endpoint,
+			Instance: instanceName,
+			Error:    err.Error(),
+		})
 		return
 	}
-	if h.authHeader != "" {
-		req.Header.Set("Authorization", h.authHeader)
+	if inst.AuthHeader != "" {
+		req.Header.Set("Authorization", inst.AuthHeader)
 	}
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		send(ServerMessage{Type: "error", Endpoint: endpoint, Error: "telemt unreachable"})
+		send(ServerMessage{
+			Type:     "error",
+			Endpoint: endpoint,
+			Instance: instanceName,
+			Error:    "telemt unreachable",
+		})
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		send(ServerMessage{Type: "error", Endpoint: endpoint, Error: err.Error()})
+		send(ServerMessage{
+			Type:     "error",
+			Endpoint: endpoint,
+			Instance: instanceName,
+			Error:    err.Error(),
+		})
 		return
 	}
 
@@ -195,7 +254,12 @@ func (h *Handler) fetchAndSend(endpoint string, send func(ServerMessage)) {
 		} `json:"error"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		send(ServerMessage{Type: "error", Endpoint: endpoint, Error: "invalid response"})
+		send(ServerMessage{
+			Type:     "error",
+			Endpoint: endpoint,
+			Instance: instanceName,
+			Error:    "invalid response",
+		})
 		return
 	}
 
@@ -211,12 +275,22 @@ func (h *Handler) fetchAndSend(endpoint string, send func(ServerMessage)) {
 				errMsg = envelope.Err.Code
 			}
 		}
-		send(ServerMessage{Type: "error", Endpoint: endpoint, Error: errMsg})
+		send(ServerMessage{
+			Type:     "error",
+			Endpoint: endpoint,
+			Instance: instanceName,
+			Error:    errMsg,
+		})
 		return
 	}
 
 	// Send raw data to avoid double-encoding
 	var data interface{}
 	_ = json.Unmarshal(envelope.Data, &data)
-	send(ServerMessage{Type: "data", Endpoint: endpoint, Data: data})
+	send(ServerMessage{
+		Type:     "data",
+		Endpoint: endpoint,
+		Instance: instanceName,
+		Data:     data,
+	})
 }
