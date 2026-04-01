@@ -636,9 +636,9 @@ export function UsersPage() {
             </div>
           </div>
         )}
-      </div>
         </>
       )}
+      </div>
 
       {/* Dialogs - shared between both views */}
       <UserFormDialog
