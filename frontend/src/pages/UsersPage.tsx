@@ -666,7 +666,6 @@ export function UsersPage() {
         }
         loading={deleting}
       />
-    </div>
         </>
       )}
     </div>
