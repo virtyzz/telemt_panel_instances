@@ -3,6 +3,7 @@ import { Header } from '@/components/layout/Header';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { UserFormDialog } from '@/components/UserFormDialog';
+import { UserCard } from '@/components/UserCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -11,8 +12,10 @@ import {
 import { usePolling } from '@/hooks/usePolling';
 import { telemt, panelApi, ApiError, instancesApi } from '@/lib/api';
 import { useCurrentInstance } from '@/hooks/useCurrentInstance';
+import { useInstances } from '@/hooks/useInstances.tsx';
+import { useViewMode } from '@/hooks/useViewMode';
 import { Link } from 'react-router-dom';
-import { Copy, Plus, Pencil, Trash2, Check, ArrowUp, ArrowDown, ArrowUpDown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Copy, Plus, Pencil, Trash2, Check, ArrowUp, ArrowDown, ArrowUpDown, Search, ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 
 type SortKey = 'username' | 'current_connections' | 'active_unique_ips' | 'total_octets' | 'expiration_rfc3339';
@@ -109,7 +112,12 @@ function collectLinks(links?: UserLinks, username?: string): LinkEntry[] {
 }
 
 export function UsersPage() {
-  const { currentInstance, api } = useCurrentInstance();
+  const { viewMode, setViewMode } = useViewMode('single');
+  const { currentInstance, api, hasInstance } = useCurrentInstance();
+  const { instances: instanceList } = useInstances();
+  const allInstancesUsers = useAllInstancesUsers();
+
+  // Single instance mode (existing behavior)
   const { data: users, error, loading, refresh } = usePolling<UserInfo[]>(
     () => api.get('/v1/users'),
     10000
@@ -185,8 +193,8 @@ export function UsersPage() {
   }, []);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [editUser, setEditUser] = useState<UserInfo | null>(null);
-  const [deleteUser, setDeleteUser] = useState<string | null>(null);
+  const [editUser, setEditUser] = useState<(UserInfo & { instanceName?: string }) | null>(null);
+  const [deleteUser, setDeleteUser] = useState<{ username: string; instanceName?: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState('');
   const [userDefaults, setUserDefaults] = useState<{
@@ -210,7 +218,12 @@ export function UsersPage() {
 
   const handleEdit = useCallback(async (data: Record<string, unknown>) => {
     if (!editUser) return;
-    await api.patch(`/v1/users/${editUser.username}`, data);
+    // For multi-instance, use the instance-specific API
+    if (editUser.instanceName) {
+      await instancesApi.patch(editUser.instanceName, `/v1/users/${editUser.username}`, data);
+    } else {
+      await api.patch(`/v1/users/${editUser.username}`, data);
+    }
     refresh();
   }, [editUser, api, refresh]);
 
@@ -219,7 +232,12 @@ export function UsersPage() {
     setDeleting(true);
     setActionError('');
     try {
-      await api.delete(`/v1/users/${deleteUser}`);
+      // For multi-instance, use the instance-specific API
+      if (deleteUser.instanceName) {
+        await instancesApi.delete(deleteUser.instanceName, `/v1/users/${deleteUser.username}`);
+      } else {
+        await api.delete(`/v1/users/${deleteUser.username}`);
+      }
       setDeleteUser(null);
       refresh();
     } catch (err) {
@@ -231,7 +249,97 @@ export function UsersPage() {
 
   return (
     <div className="min-h-screen">
-      <Header title="Users" refreshing={loading} onRefresh={refresh} />
+      {/* All Instances View */}
+      {viewMode === 'all' ? (
+        <>
+          <Header
+            title="Users"
+            refreshing={!allInstancesUsers.loading}
+            onRefresh={allInstancesUsers.refresh}
+            extraAction={
+              <button
+                onClick={() => setViewMode('single')}
+                className="p-2 hover:bg-surface-hover rounded-lg transition-colors"
+                title="Switch to single instance view"
+              >
+                <List size={18} className="text-text-secondary" />
+              </button>
+            }
+          />
+
+          <div className="p-4 lg:p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-text-secondary">
+                <LayoutGrid size={16} />
+                <span>Showing all users from {instanceList.length} instance(s)</span>
+              </div>
+              <div className="text-xs text-text-secondary">
+                Mode auto-saves per device
+              </div>
+            </div>
+
+            {allInstancesUsers.loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-text-secondary">Loading users...</div>
+              </div>
+            ) : allInstancesUsers.users.length === 0 ? (
+              <div className="text-center text-text-secondary py-12 bg-surface border border-border rounded-lg">
+                No users configured across all instances
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {allInstancesUsers.users.map((user, idx) => (
+                  <UserCard
+                    key={`${user.instanceName || 'default'}:${user.username}:${idx}`}
+                    user={user}
+                    onEdit={(username) => {
+                      setEditUser({ username } as UserInfo);
+                      setCreateOpen(true);
+                    }}
+                    onDelete={(username) => setDeleteUser(username)}
+                    onCopy={async (text, label) => {
+                      try {
+                        if (navigator.clipboard) {
+                          await navigator.clipboard.writeText(text);
+                        } else {
+                          const textarea = document.createElement('textarea');
+                          textarea.value = text;
+                          textarea.style.position = 'fixed';
+                          textarea.style.opacity = '0';
+                          document.body.appendChild(textarea);
+                          textarea.select();
+                          document.execCommand('copy');
+                          document.body.removeChild(textarea);
+                        }
+                      } catch {
+                        // Ignore
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        /* Single Instance View (existing behavior) */
+        <>
+          <Header
+            title="Users"
+            refreshing={loading}
+            onRefresh={refresh}
+            extraAction={
+              instanceList.length > 1 && (
+                <button
+                  onClick={() => setViewMode('all')}
+                  className="p-2 hover:bg-surface-hover rounded-lg transition-colors"
+                  title="View all instances"
+                >
+                  <LayoutGrid size={18} className="text-text-secondary" />
+                </button>
+              )
+            }
+          />
 
       <div className="p-4 lg:p-6 space-y-4">
         {error && <ErrorAlert message={error.message} onRetry={refresh} />}
@@ -551,9 +659,16 @@ export function UsersPage() {
         onClose={() => setDeleteUser(null)}
         onConfirm={handleDelete}
         title="Delete User"
-        message={`Are you sure you want to delete user "${deleteUser}"? This action cannot be undone.`}
+        message={
+          deleteUser?.instanceName
+            ? `Are you sure you want to delete user "${deleteUser.username}" from ${deleteUser.instanceName}? This action cannot be undone.`
+            : `Are you sure you want to delete user "${deleteUser?.username}"? This action cannot be undone.`
+        }
         loading={deleting}
       />
+    </div>
+        </>
+      )}
     </div>
   );
 }

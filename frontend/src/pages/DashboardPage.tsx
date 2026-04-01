@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { MetricCard } from '@/components/MetricCard';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -10,6 +9,7 @@ import { telemt, instancesApi } from '@/lib/api';
 import { useCurrentInstance } from '@/hooks/useCurrentInstance';
 import { useInstances } from '@/hooks/useInstances.tsx';
 import { useAllInstancesDashboard } from '@/hooks/useAllInstancesDashboard';
+import { useViewMode } from '@/hooks/useViewMode';
 import { InstanceCard } from '@/components/InstanceCard';
 import { formatUptime, formatNumber, formatBytes } from '@/lib/utils';
 import { Activity, Wifi, WifiOff, Clock, Users, ArrowUpDown, Globe, LayoutGrid, List } from 'lucide-react';
@@ -46,10 +46,8 @@ interface UserTrafficData {
 
 const ENDPOINTS = ['/v1/health', '/v1/stats/summary', '/v1/system/info', '/v1/runtime/gates'];
 
-type ViewMode = 'single' | 'all';
-
 export function DashboardPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>('single');
+  const { viewMode, setViewMode } = useViewMode('single');
   const { currentInstance, api, hasInstance, loading: instanceLoading } = useCurrentInstance();
   const { instances: instanceList } = useInstances();
   const allInstancesData = useAllInstancesDashboard();
@@ -96,10 +94,10 @@ export function DashboardPage() {
   if (viewMode === 'all') {
     return (
       <div>
-        <Header 
-          title="Dashboard" 
-          refreshing={!allInstancesData.loading} 
-          onRefresh={allInstancesData.refresh} 
+        <Header
+          title="Dashboard"
+          refreshing={!allInstancesData.loading}
+          onRefresh={allInstancesData.refresh}
           extraAction={
             <button
               onClick={() => setViewMode('single')}
@@ -113,9 +111,14 @@ export function DashboardPage() {
 
         <div className="p-4 lg:p-6">
           {/* View mode toggle info */}
-          <div className="mb-4 flex items-center gap-2 text-sm text-text-secondary">
-            <LayoutGrid size={16} />
-            <span>Showing all {instanceList.length} instance(s)</span>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm text-text-secondary">
+              <LayoutGrid size={16} />
+              <span>Showing all {instanceList.length} instance(s)</span>
+            </div>
+            <div className="text-xs text-text-secondary">
+              Mode auto-saves per device
+            </div>
           </div>
 
           {/* Instance cards grid */}
