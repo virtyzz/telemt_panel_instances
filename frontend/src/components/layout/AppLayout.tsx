@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { Sidebar, BottomNav } from './Sidebar';
 import { useAuth } from '@/hooks/useAuth';
-import { InstanceProvider } from '@/hooks/useInstances';
+import { InstanceProvider } from '@/hooks/useInstances.tsx';
 import { InstanceSelector } from '@/components/InstanceSelector';
 import { Menu } from 'lucide-react';
 

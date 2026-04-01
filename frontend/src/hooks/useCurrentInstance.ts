@@ -1,4 +1,4 @@
-import { useInstances } from '@/hooks/useInstances';
+import { useInstances } from '@/hooks/useInstances.tsx';
 import { instancesApi, telemt } from '@/lib/api';
 
 /**

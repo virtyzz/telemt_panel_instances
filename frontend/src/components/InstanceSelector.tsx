@@ -1,5 +1,5 @@
 import { CheckCircle2, CircleX, Loader2 } from 'lucide-react';
-import { useInstances } from '@/hooks/useInstances';
+import { useInstances } from '@/hooks/useInstances.tsx';
 import { cn } from '@/lib/utils';
 
 export function InstanceSelector() {
