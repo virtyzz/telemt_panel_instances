@@ -473,9 +473,9 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 		},
 		ApplyFn: func(version string) error { return upd.Apply(version) },
 	}, auto_update.ComponentConfig{
-		Enabled:       firstInst.AutoUpdate.Enabled,
-		CheckInterval: firstInst.AutoUpdate.CheckInterval,
-		AutoApply:     firstInst.AutoUpdate.AutoApply,
+		Enabled:       s.cfg.Telemt.AutoUpdate.Enabled,
+		CheckInterval: s.cfg.Telemt.AutoUpdate.CheckInterval,
+		AutoApply:     s.cfg.Telemt.AutoUpdate.AutoApply,
 	})
 	defer autoMgr.StopAll()
 
@@ -695,7 +695,10 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 	})))
 
 	// Logs
-	firstInst := s.getFirstInstance()
+	var firstInst *instance.Instance
+	if s.inst != nil {
+		firstInst = s.getFirstInstance()
+	}
 	serviceName := ""
 	containerName := ""
 	if firstInst != nil {
