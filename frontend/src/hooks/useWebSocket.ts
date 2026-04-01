@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback } f
 interface ServerMessage {
   type: 'data' | 'error';
   endpoint: string;
+  instance?: string;  // Instance name for multi-instance support
   data?: unknown;
   error?: string;
   timestamp: number;
@@ -10,13 +11,13 @@ interface ServerMessage {
 
 type DataMap = Record<string, unknown>;
 type ErrorMap = Record<string, string>;
-type Subscriber = { endpoints: string[]; interval: number };
+type Subscriber = { endpoints: string[]; interval: number; instance?: string };
 
 interface WsContextValue {
   data: DataMap;
   errors: ErrorMap;
   connected: boolean;
-  subscribe: (id: string, endpoints: string[], interval?: number) => void;
+  subscribe: (id: string, endpoints: string[], interval?: number, instance?: string) => void;
   unsubscribe: (id: string) => void;
   refresh: () => void;
 }
@@ -39,12 +40,13 @@ export function useWsProvider(): WsContextValue {
   const subscribers = useRef<Map<string, Subscriber>>(new Map());
 
   const getAggregated = useCallback(() => {
-    const endpointIntervals = new Map<string, number>();
+    const endpointIntervals = new Map<string, { interval: number; instance?: string }>();
     for (const sub of subscribers.current.values()) {
       for (const ep of sub.endpoints) {
-        const existing = endpointIntervals.get(ep);
-        if (!existing || sub.interval < existing) {
-          endpointIntervals.set(ep, sub.interval);
+        const key = sub.instance ? `${sub.instance}:${ep}` : ep;
+        const existing = endpointIntervals.get(key);
+        if (!existing || sub.interval < existing.interval) {
+          endpointIntervals.set(key, { interval: sub.interval, instance: sub.instance });
         }
       }
     }
@@ -58,24 +60,32 @@ export function useWsProvider(): WsContextValue {
     const agg = getAggregated();
     if (agg.size === 0) return;
 
-    // Group by interval
-    const byInterval = new Map<number, string[]>();
-    for (const [ep, interval] of agg) {
-      const list = byInterval.get(interval) || [];
-      list.push(ep);
-      byInterval.set(interval, list);
+    // Group by instance and interval
+    const byInstanceAndInterval = new Map<string, { endpoints: string[]; interval: number }>();
+    for (const [key, { interval, instance }] of agg.entries()) {
+      const groupKey = `${instance || 'default'}:${interval}`;
+      const existing = byInstanceAndInterval.get(groupKey);
+      if (existing) {
+        // Add endpoint with instance prefix if needed
+        const ep = instance ? `${instance}:${key.split(':')[1] || key}` : key;
+        if (!existing.endpoints.includes(ep)) {
+          existing.endpoints.push(ep);
+        }
+      } else {
+        const ep = instance ? `${instance}:${key.split(':')[1] || key}` : key;
+        byInstanceAndInterval.set(groupKey, { endpoints: [ep], interval });
+      }
     }
 
-    // Send subscription for the smallest interval with all endpoints
-    // (server handles one subscription at a time, so merge into one)
-    const allEndpoints = [...agg.keys()];
-    const minInterval = Math.min(...agg.values());
-
-    ws.send(JSON.stringify({
-      type: 'subscribe',
-      endpoints: allEndpoints,
-      interval: minInterval,
-    }));
+    // Send first subscription (server handles one at a time)
+    const firstGroup = byInstanceAndInterval.entries().next().value;
+    if (firstGroup) {
+      ws.send(JSON.stringify({
+        type: 'subscribe',
+        endpoints: firstGroup[1].endpoints,
+        interval: firstGroup[1].interval,
+      }));
+    }
   }, [getAggregated]);
 
   const connect = useCallback(() => {
@@ -93,16 +103,19 @@ export function useWsProvider(): WsContextValue {
 
     ws.onmessage = (event) => {
       const msg: ServerMessage = JSON.parse(event.data);
+      // Create unique key for data map
+      const key = msg.instance ? `${msg.instance}:${msg.endpoint}` : msg.endpoint;
+      
       if (msg.type === 'data') {
-        setData(prev => ({ ...prev, [msg.endpoint]: msg.data }));
+        setData(prev => ({ ...prev, [key]: msg.data }));
         setErrors(prev => {
-          if (!prev[msg.endpoint]) return prev;
+          if (!prev[key]) return prev;
           const next = { ...prev };
-          delete next[msg.endpoint];
+          delete next[key];
           return next;
         });
       } else if (msg.type === 'error') {
-        setErrors(prev => ({ ...prev, [msg.endpoint]: msg.error || 'unknown error' }));
+        setErrors(prev => ({ ...prev, [key]: msg.error || 'unknown error' }));
       }
     };
 
@@ -124,8 +137,8 @@ export function useWsProvider(): WsContextValue {
     };
   }, [connect]);
 
-  const subscribe = useCallback((id: string, endpoints: string[], interval = 5) => {
-    subscribers.current.set(id, { endpoints, interval });
+  const subscribe = useCallback((id: string, endpoints: string[], interval = 5, instance?: string) => {
+    subscribers.current.set(id, { endpoints, interval, instance });
     sendSubscriptions();
   }, [sendSubscriptions]);
 
@@ -142,15 +155,15 @@ export function useWsProvider(): WsContextValue {
 }
 
 // Hook for pages to subscribe to specific endpoints
-export function useWsSubscription(id: string, endpoints: string[], interval = 5) {
+export function useWsSubscription(id: string, endpoints: string[], interval = 5, instance?: string) {
   const ctx = useContext(WsContext);
   const endpointsKey = endpoints.join(',');
 
   useEffect(() => {
-    ctx.subscribe(id, endpoints, interval);
+    ctx.subscribe(id, endpoints, interval, instance);
     return () => ctx.unsubscribe(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, endpointsKey, interval]);
+  }, [id, endpointsKey, interval, instance]);
 
   return {
     data: ctx.data,
@@ -161,6 +174,7 @@ export function useWsSubscription(id: string, endpoints: string[], interval = 5)
 }
 
 // Helper to get typed data from the map
-export function useEndpoint<T>(dataMap: DataMap, endpoint: string): T | null {
-  return (dataMap[endpoint] as T) ?? null;
+export function useEndpoint<T>(dataMap: DataMap, endpoint: string, instance?: string): T | null {
+  const key = instance ? `${instance}:${endpoint}` : endpoint;
+  return (dataMap[key] as T) ?? null;
 }

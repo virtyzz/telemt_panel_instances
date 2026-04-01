@@ -12,28 +12,44 @@ listen = "0.0.0.0:8080"
 #
 # base_path = "/panel123"
 
-[telemt]
-# Telemt API base URL (no trailing slash)
-url = "http://127.0.0.1:9091"
-# Authorization header value sent to Telemt API
-auth_header = "your-telemt-api-secret"
-# Path to telemt binary (default: /bin/telemt)
-# For standard system installs: binary_path = "/bin/telemt"
+# Telemt Instances Configuration
+# You can configure multiple Telemt server instances.
+# Each instance must have a unique name and URL.
+#
+# For backward compatibility, the old [telemt] section is still supported
+# and will be automatically converted to a single instance named "default".
+
+[[telemt_instances]]
+name = "Moscow"
+url = "http://10.0.0.1:9091"
+auth_header = "Bearer token123"
 # binary_path = "/bin/telemt"
-# Systemd service name (default: telemt)
 # service_name = "telemt"
-# GitHub repository for update checks (default: telemt/telemt)
 # github_repo = "telemt/telemt"
-# Path to Telemt config file (optional, for Docker or custom setups)
-# If not set, the path is obtained from Telemt API automatically
 # config_path = "/etc/telemt/config.toml"
-# Docker container name (if Telemt runs in Docker)
 # container_name = "telemt"
 
-# [telemt.auto_update]
+# [telemt_instances.auto_update]
 # enabled = false
-# check_interval = "1h"  # Go duration: 5m, 30m, 1h, 6h, 24h (min: 5m)
-# auto_apply = true       # automatically install stable updates
+# check_interval = "1h"
+# auto_apply = true
+
+[[telemt_instances]]
+name = "Amsterdam"
+url = "http://10.0.0.2:9091"
+auth_header = ""
+
+[[telemt_instances]]
+name = "Frankfurt"
+url = "http://10.0.0.3:9091"
+auth_header = "Bearer token456"
+
+# Legacy [telemt] section (for backward compatibility)
+# If both [telemt] and [[telemt_instances]] are present,
+# telemt_instances takes precedence.
+# [telemt]
+# url = "http://127.0.0.1:9091"
+# auth_header = "your-telemt-api-secret"
 
 [panel]
 # Path to telemt-panel binary (default: /usr/local/bin/telemt-panel)

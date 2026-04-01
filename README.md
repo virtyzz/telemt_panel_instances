@@ -17,8 +17,12 @@ Web-панель управления для [Telemt](https://github.com/telemt/
 - [Быстрый старт](#быстрый-старт)
 - [Сборка](#сборка)
 - [Конфигурация](#конфигурация)
+  - [Поддержка нескольких экземпляров Telemt](#поддержка-нескольких-экземпляров-telemt)
 - [Systemd](#systemd)
 - [CLI](#cli)
+- [API](#api)
+  - [Управление экземплярами](#управление-экземплярами)
+  - [Проксирование запросов к экземплярам](#проксирование-запросов-к-экземплярам)
 - [Стек](#стек)
 - [Лицензия](#лицензия)
 
@@ -30,6 +34,7 @@ Web-панель управления для [Telemt](https://github.com/telemt/
 
 ## Возможности
 
+- **Несколько экземпляров Telemt** — управление и мониторинг нескольких серверов Telemt из одного интерфейса с быстрым переключением между ними
 - **Dashboard** — здоровье сервера, uptime, соединения, общий трафик, статус DC
 - **Пользователи** — CRUD через API Telemt, сортировка по колонкам, подсветка активных соединений
 - **Runtime** — соединения, ME pool state, ME quality, upstream quality, NAT/STUN, self-test, события
@@ -154,16 +159,53 @@ go build -ldflags="-s -w -X main.version=1.2.3" -o telemt-panel .
 
 Полный пример конфигурации — [`config.example.toml`](config.example.toml).
 
+### Поддержка нескольких экземпляров Telemt
+
+Панель поддерживает управление несколькими серверами Telemt из одного интерфейса. Для этого используйте секцию `[[telemt_instances]]` вместо `[telemt]`:
+
+```toml
+[[telemt_instances]]
+name = "Moscow"
+url = "http://10.0.0.1:9091"
+auth_header = "Bearer token123"
+# binary_path = "/bin/telemt"
+# service_name = "telemt"
+# github_repo = "telemt/telemt"
+# config_path = "/etc/telemt/config.toml"
+# container_name = "telemt"
+
+# [telemt_instances.auto_update]
+# enabled = false
+# check_interval = "1h"
+# auto_apply = true
+
+[[telemt_instances]]
+name = "Amsterdam"
+url = "http://10.0.0.2:9091"
+auth_header = ""
+
+[[telemt_instances]]
+name = "Frankfurt"
+url = "http://10.0.0.3:9091"
+auth_header = "Bearer token456"
+```
+
+**Обратная совместимость:** Старая секция `[telemt]` по-прежнему поддерживается. Если она присутствует, но `[[telemt_instances]]` пуст, панель автоматически создаст один экземпляр с именем "default".
+
 | Секция | Параметр | Описание | По умолчанию |
 |--------|----------|----------|-------------|
 | — | `listen` | Адрес и порт | `0.0.0.0:8080` |
 | — | `base_path` | Подпуть для reverse proxy (например `/panel123`) | — |
-| `[telemt]` | `url` | URL API Telemt | **обязательный** |
-| `[telemt]` | `auth_header` | Authorization-заголовок к Telemt API | — |
-| `[telemt]` | `binary_path` | Путь к бинарнику telemt (для обновлений) | `/bin/telemt` |
-| `[telemt]` | `service_name` | Имя systemd-сервиса | `telemt` |
-| `[telemt]` | `github_repo` | GitHub-репозиторий для проверки обновлений | `telemt/telemt` |
-| `[telemt]` | `config_path` | Путь к конфигу Telemt (для Docker / нестандартных путей) | автоматически из API |
+| `[[telemt_instances]]` | `name` | Человекочитаемое имя экземпляра (отображается в интерфейсе) | **обязательный** |
+| `[[telemt_instances]]` | `url` | URL API Telemt | **обязательный** |
+| `[[telemt_instances]]` | `auth_header` | Authorization-заголовок к Telemt API | — |
+| `[[telemt_instances]]` | `binary_path` | Путь к бинарнику telemt (для обновлений) | `/bin/telemt` |
+| `[[telemt_instances]]` | `service_name` | Имя systemd-сервиса | `telemt` |
+| `[[telemt_instances]]` | `github_repo` | GitHub-репозиторий для проверки обновлений | `telemt/telemt` |
+| `[[telemt_instances]]` | `config_path` | Путь к конфигу Telemt (для Docker / нестандартных путей) | автоматически из API |
+| `[[telemt_instances]]` | `container_name` | Имя Docker-контейнера (если Telemt в Docker) | — |
+| `[telemt]` (legacy) | `url` | URL API Telemt | **обязательный** |
+| `[telemt]` (legacy) | `auth_header` | Authorization-заголовок к Telemt API | — |
 | `[panel]` | `binary_path` | Путь к бинарнику панели (для самообновления) | `/usr/local/bin/telemt-panel` |
 | `[panel]` | `service_name` | Имя systemd-сервиса панели | `telemt-panel` |
 | `[panel]` | `github_repo` | GitHub-репозиторий панели | `amirotin/telemt_panel` |
@@ -254,6 +296,33 @@ telemt-panel --config config.toml    # запуск сервера
 telemt-panel hash-password           # сгенерировать bcrypt-хеш
 telemt-panel version                 # показать версию
 ```
+
+## API
+
+### Управление экземплярами
+
+- `GET /api/instances` — вернуть список всех настроенных экземпляров с базовой информацией (имя, URL, статус доступности).
+
+```json
+{
+  "ok": true,
+  "data": [
+    {"name": "Moscow", "url": "http://10.0.0.1:9091", "healthy": true},
+    {"name": "Amsterdam", "url": "http://10.0.0.2:9091", "healthy": true},
+    {"name": "Frankfurt", "url": "http://10.0.0.3:9091", "healthy": false}
+  ]
+}
+```
+
+### Проксирование запросов к экземплярам
+
+Все запросы к API Telemt теперь можно делать через `/api/instances/{instance_name}/...`:
+
+- `GET /api/instances/Moscow/v1/users` — получить список пользователей для экземпляра "Moscow"
+- `POST /api/instances/Amsterdam/v1/users` — создать пользователя на экземпляре "Amsterdam"
+- `GET /api/instances/Frankfurt/v1/stats/summary` — получить статистику для экземпляра "Frankfurt"
+
+**Legacy-эндпоинт:** `/api/telemt/...` по-прежнему работает и использует первый экземпляр из конфигурации.
 
 ## Стек
 

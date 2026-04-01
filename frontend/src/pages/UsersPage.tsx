@@ -9,7 +9,8 @@ import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@/components/ui/table';
 import { usePolling } from '@/hooks/usePolling';
-import { telemt, panelApi, ApiError } from '@/lib/api';
+import { telemt, panelApi, ApiError, instancesApi } from '@/lib/api';
+import { useCurrentInstance } from '@/hooks/useCurrentInstance';
 import { Link } from 'react-router-dom';
 import { Copy, Plus, Pencil, Trash2, Check, ArrowUp, ArrowDown, ArrowUpDown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
@@ -108,8 +109,9 @@ function collectLinks(links?: UserLinks, username?: string): LinkEntry[] {
 }
 
 export function UsersPage() {
+  const { currentInstance, api } = useCurrentInstance();
   const { data: users, error, loading, refresh } = usePolling<UserInfo[]>(
-    () => telemt.get('/v1/users'),
+    () => api.get('/v1/users'),
     10000
   );
 
@@ -202,22 +204,22 @@ export function UsersPage() {
   }, []);
 
   const handleCreate = useCallback(async (data: Record<string, unknown>) => {
-    await telemt.post('/v1/users', data);
+    await api.post('/v1/users', data);
     refresh();
-  }, [refresh]);
+  }, [api, refresh]);
 
   const handleEdit = useCallback(async (data: Record<string, unknown>) => {
     if (!editUser) return;
-    await telemt.patch(`/v1/users/${editUser.username}`, data);
+    await api.patch(`/v1/users/${editUser.username}`, data);
     refresh();
-  }, [editUser, refresh]);
+  }, [editUser, api, refresh]);
 
   const handleDelete = useCallback(async () => {
     if (!deleteUser) return;
     setDeleting(true);
     setActionError('');
     try {
-      await telemt.delete(`/v1/users/${deleteUser}`);
+      await api.delete(`/v1/users/${deleteUser}`);
       setDeleteUser(null);
       refresh();
     } catch (err) {
@@ -225,7 +227,7 @@ export function UsersPage() {
     } finally {
       setDeleting(false);
     }
-  }, [deleteUser, refresh]);
+  }, [deleteUser, api, refresh]);
 
   return (
     <div className="min-h-screen">

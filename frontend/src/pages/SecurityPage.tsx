@@ -2,6 +2,7 @@ import { Header } from '@/components/layout/Header';
 import { StatusBadge } from '@/components/StatusBadge';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { useWsSubscription, useEndpoint } from '@/hooks/useWebSocket';
+import { useCurrentInstance } from '@/hooks/useCurrentInstance';
 
 interface SecurityPostureData {
   api_read_only: boolean;
@@ -42,11 +43,12 @@ function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string
 const ENDPOINTS = ['/v1/security/posture', '/v1/security/whitelist', '/v1/limits/effective'];
 
 export function SecurityPage() {
-  const { data: wsData, errors, connected, refresh } = useWsSubscription('security', ENDPOINTS, 10);
+  const { currentInstance } = useCurrentInstance();
+  const { data: wsData, errors, connected, refresh } = useWsSubscription('security', ENDPOINTS, 10, currentInstance || undefined);
 
-  const posture = useEndpoint<SecurityPostureData>(wsData, '/v1/security/posture');
-  const whitelist = useEndpoint<WhitelistData>(wsData, '/v1/security/whitelist');
-  const limits = useEndpoint<LimitsData>(wsData, '/v1/limits/effective');
+  const posture = useEndpoint<SecurityPostureData>(wsData, '/v1/security/posture', currentInstance || undefined);
+  const whitelist = useEndpoint<WhitelistData>(wsData, '/v1/security/whitelist', currentInstance || undefined);
+  const limits = useEndpoint<LimitsData>(wsData, '/v1/limits/effective', currentInstance || undefined);
 
   const firstError = Object.values(errors)[0];
   const flatLimits = limits ? flattenObject(limits) : {};

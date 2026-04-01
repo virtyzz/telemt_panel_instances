@@ -3,6 +3,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { MetricCard } from '@/components/MetricCard';
 import { useWsSubscription, useEndpoint } from '@/hooks/useWebSocket';
+import { useCurrentInstance } from '@/hooks/useCurrentInstance';
 
 interface UpstreamStatus {
   address?: string;
@@ -55,11 +56,12 @@ function formatValue(value: unknown): string {
 const ENDPOINTS = ['/v1/stats/upstreams', '/v1/stats/dcs', '/v1/stats/me-writers'];
 
 export function UpstreamsPage() {
-  const { data: wsData, errors, connected, refresh } = useWsSubscription('upstreams', ENDPOINTS, 5);
+  const { currentInstance } = useCurrentInstance();
+  const { data: wsData, errors, connected, refresh } = useWsSubscription('upstreams', ENDPOINTS, 5, currentInstance || undefined);
 
-  const upstreams = useEndpoint<UpstreamsData>(wsData, '/v1/stats/upstreams');
-  const dcs = useEndpoint<DcStatusData>(wsData, '/v1/stats/dcs');
-  const meWriters = useEndpoint<MeWritersData>(wsData, '/v1/stats/me-writers');
+  const upstreams = useEndpoint<UpstreamsData>(wsData, '/v1/stats/upstreams', currentInstance || undefined);
+  const dcs = useEndpoint<DcStatusData>(wsData, '/v1/stats/dcs', currentInstance || undefined);
+  const meWriters = useEndpoint<MeWritersData>(wsData, '/v1/stats/me-writers', currentInstance || undefined);
 
   const firstError = Object.values(errors)[0];
 

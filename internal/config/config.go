@@ -43,17 +43,31 @@ type UsersConfig struct {
 	Expiration     string `toml:"expiration" json:"expiration_rfc3339,omitempty"`
 }
 
+// TelemtInstance represents a single Telemt server instance.
+type TelemtInstance struct {
+	Name        string           `toml:"name"`
+	URL         string           `toml:"url"`
+	AuthHeader  string           `toml:"auth_header"`
+	BinaryPath  string           `toml:"binary_path"`
+	ServiceName string           `toml:"service_name"`
+	GithubRepo  string           `toml:"github_repo"`
+	ConfigPath  string           `toml:"config_path"`
+	ContainerName string         `toml:"container_name"`
+	AutoUpdate  AutoUpdateConfig `toml:"auto_update"`
+}
+
 type Config struct {
-	Path     string       `toml:"-"` // config file path, set after loading
-	Listen   string       `toml:"listen"`
-	BasePath string       `toml:"base_path"`
-	DataDir  string       `toml:"data_dir"`
-	Telemt   TelemtConfig `toml:"telemt"`
-	Panel    PanelConfig  `toml:"panel"`
-	Auth     AuthConfig   `toml:"auth"`
-	TLS      TLSConfig    `toml:"tls"`
-	GeoIP    GeoIPConfig  `toml:"geoip"`
-	Users    UsersConfig  `toml:"users"`
+	Path            string           `toml:"-"` // config file path, set after loading
+	Listen          string           `toml:"listen"`
+	BasePath        string           `toml:"base_path"`
+	DataDir         string           `toml:"data_dir"`
+	Telemt          TelemtConfig     `toml:"telemt"` // legacy, for backward compatibility
+	TelemtInstances []TelemtInstance `toml:"telemt_instances"`
+	Panel           PanelConfig      `toml:"panel"`
+	Auth            AuthConfig       `toml:"auth"`
+	TLS             TLSConfig        `toml:"tls"`
+	GeoIP           GeoIPConfig      `toml:"geoip"`
+	Users           UsersConfig      `toml:"users"`
 }
 
 type GeoIPConfig struct {
@@ -180,9 +194,47 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("tls: both cert_file and key_file must be set")
 	}
 
-	if cfg.Telemt.URL == "" {
-		return nil, fmt.Errorf("telemt.url is required")
+	// Handle backward compatibility: if legacy [telemt] section exists but [[telemt_instances]] is empty,
+	// convert the legacy config to a single instance
+	if cfg.Telemt.URL != "" && len(cfg.TelemtInstances) == 0 {
+		instance := TelemtInstance{
+			Name:        "default",
+			URL:         cfg.Telemt.URL,
+			AuthHeader:  cfg.Telemt.AuthHeader,
+			BinaryPath:  cfg.Telemt.BinaryPath,
+			ServiceName: cfg.Telemt.ServiceName,
+			GithubRepo:  cfg.Telemt.GithubRepo,
+			ConfigPath:  cfg.Telemt.ConfigPath,
+			ContainerName: cfg.Telemt.ContainerName,
+			AutoUpdate:  cfg.Telemt.AutoUpdate,
+		}
+		cfg.TelemtInstances = append(cfg.TelemtInstances, instance)
 	}
+
+	// Validate that at least one instance is configured
+	if len(cfg.TelemtInstances) == 0 {
+		return nil, fmt.Errorf("telemt_instances: at least one instance must be configured")
+	}
+
+	// Validate and set defaults for each instance
+	for i, inst := range cfg.TelemtInstances {
+		if inst.Name == "" {
+			return nil, fmt.Errorf("telemt_instances[%d]: name is required", i)
+		}
+		if inst.URL == "" {
+			return nil, fmt.Errorf("telemt_instances[%d]: url is required", i)
+		}
+		if inst.BinaryPath == "" {
+			cfg.TelemtInstances[i].BinaryPath = "/bin/telemt"
+		}
+		if inst.ServiceName == "" {
+			cfg.TelemtInstances[i].ServiceName = "telemt"
+		}
+		if inst.GithubRepo == "" {
+			cfg.TelemtInstances[i].GithubRepo = "telemt/telemt"
+		}
+	}
+
 	if cfg.Auth.Username == "" {
 		return nil, fmt.Errorf("auth.username is required")
 	}

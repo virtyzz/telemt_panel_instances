@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -15,14 +16,23 @@ import (
 	"github.com/telemt/telemt-panel/internal/auto_update"
 	"github.com/telemt/telemt-panel/internal/config"
 	"github.com/telemt/telemt-panel/internal/geoip"
+	"github.com/telemt/telemt-panel/internal/instance"
 	"github.com/telemt/telemt-panel/internal/logs"
 	"github.com/telemt/telemt-panel/internal/panel_updater"
-	"github.com/telemt/telemt-panel/internal/proxy"
 	"github.com/telemt/telemt-panel/internal/spa"
 	"github.com/telemt/telemt-panel/internal/telemt_config"
 	"github.com/telemt/telemt-panel/internal/updater"
 	"github.com/telemt/telemt-panel/internal/ws"
 )
+
+// touchConfigFile updates the modification time of a file to trigger hot-reload.
+func touchConfigFile(path string) error {
+	if path == "" {
+		return nil
+	}
+	now := time.Now()
+	return os.Chtimes(path, now, now)
+}
 
 // loginRateLimiter tracks failed login attempts per IP.
 type loginRateLimiter struct {
@@ -88,11 +98,22 @@ func (rl *loginRateLimiter) record(ip string) {
 }
 
 type Server struct {
-	cfg *config.Config
+	cfg  *config.Config
+	inst *instance.Manager
+}
+
+// getFirstInstance returns the first configured Telemt instance, or nil if none exist.
+func (s *Server) getFirstInstance() *instance.Instance {
+	instances := s.inst.GetAll()
+	if len(instances) == 0 {
+		return nil
+	}
+	return instances[0]
 }
 
 func New(cfg *config.Config) *Server {
-	return &Server{cfg: cfg}
+	instMgr := instance.NewManager(cfg.TelemtInstances)
+	return &Server{cfg: cfg, inst: instMgr}
 }
 
 type jsonResponse struct {
@@ -133,15 +154,93 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 		ttl = 24 * time.Hour
 	}
 
-	telemtProxy, err := proxy.NewTelemtProxy(s.cfg.Telemt.URL, s.cfg.Telemt.AuthHeader)
-	if err != nil {
-		return err
-	}
-
 	limiter := newLoginRateLimiter()
 	mux := http.NewServeMux()
 
-	// Auth endpoints
+	// Instances API endpoint - returns list of all configured instances
+	mux.Handle("GET /api/instances", auth.RequireAuth(jwtSecret, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		instances := s.inst.GetAll()
+		result := make([]map[string]interface{}, 0, len(instances))
+		for _, inst := range instances {
+			healthy, _ := s.inst.CheckHealth(inst.Name)
+			result = append(result, map[string]interface{}{
+				"name":    inst.Name,
+				"url":     inst.URL,
+				"healthy": healthy,
+			})
+		}
+		writeJSON(w, http.StatusOK, jsonResponse{OK: true, Data: result})
+	})))
+
+	// Helper function to extract instance name from path
+	extractInstanceName := func(path string) (string, string) {
+		// Path format: /api/instances/{name}/...
+		prefix := "/api/instances/"
+		if !strings.HasPrefix(path, prefix) {
+			return "", ""
+		}
+		remainder := strings.TrimPrefix(path, prefix)
+		parts := strings.SplitN(remainder, "/", 2)
+		if len(parts) == 0 {
+			return "", ""
+		}
+		instanceName := parts[0]
+		rest := ""
+		if len(parts) > 1 {
+			rest = "/" + parts[1]
+		}
+		return instanceName, rest
+	}
+
+	// Instances proxy endpoint - proxies requests to specific Telemt instance
+	mux.Handle("/api/instances/", auth.RequireAuth(jwtSecret, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		instanceName, rest := extractInstanceName(r.URL.Path)
+		if instanceName == "" {
+			writeError(w, http.StatusBadRequest, "bad_request", "invalid instance path")
+			return
+		}
+
+		// Touch config after successful mutating requests to /v1/users
+		if r.Method != http.MethodGet && strings.Contains(rest, "/v1/users") {
+			defer func() {
+				go func() {
+					info, err := s.inst.GetSystemInfo(instanceName)
+					if err != nil {
+						return
+					}
+					_ = touchConfigFile(info.ConfigPath)
+				}()
+			}()
+		}
+
+		s.inst.ProxyRequest(instanceName, w, r)
+	})))
+
+	// Legacy /api/telemt/ endpoint - use first instance by default
+	mux.Handle("/api/telemt/", auth.RequireAuth(jwtSecret, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		instances := s.inst.GetAll()
+		if len(instances) == 0 {
+			writeError(w, http.StatusServiceUnavailable, "no_instances", "no Telemt instances configured")
+			return
+		}
+		// Use first instance for legacy endpoint
+		instanceName := instances[0].Name
+
+		// Touch config after successful mutating requests to /v1/users
+		if r.Method != http.MethodGet && strings.Contains(r.URL.Path, "/v1/users") {
+			defer func() {
+				go func() {
+					info, err := s.inst.GetSystemInfo(instanceName)
+					if err != nil {
+						return
+					}
+					_ = touchConfigFile(info.ConfigPath)
+				}()
+			}()
+		}
+
+		s.inst.ProxyRequest(instanceName, w, r)
+	})))
 	mux.HandleFunc("POST /api/auth/login", func(w http.ResponseWriter, r *http.Request) {
 		ip := r.RemoteAddr
 		// Strip port from RemoteAddr (e.g. "1.2.3.4:12345" → "1.2.3.4")
@@ -228,16 +327,23 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 	})))
 
 	// WebSocket endpoint (auth checked via cookie on upgrade)
-	wsHandler := ws.NewHandler(s.cfg.Telemt.URL, s.cfg.Telemt.AuthHeader)
+	firstInst := s.getFirstInstance()
+	wsURL := ""
+	wsAuth := ""
+	if firstInst != nil {
+		wsURL = firstInst.URL
+		wsAuth = firstInst.AuthHeader
+	}
+	wsHandler := ws.NewHandler(wsURL, wsAuth)
 	mux.Handle("/api/ws", auth.RequireAuth(jwtSecret, wsHandler))
 
 	// Update endpoints
 	upd := updater.New(
-		s.cfg.Telemt.URL,
-		s.cfg.Telemt.BinaryPath,
-		s.cfg.Telemt.ServiceName,
-		s.cfg.Telemt.GithubRepo,
-		s.cfg.Telemt.AuthHeader,
+		wsURL,
+		firstInst.BinaryPath,
+		firstInst.ServiceName,
+		firstInst.GithubRepo,
+		firstInst.AuthHeader,
 		s.cfg.DataDir,
 		s.cfg.Panel.MaxNewerReleases,
 		s.cfg.Panel.MaxOlderReleases,
@@ -367,9 +473,9 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 		},
 		ApplyFn: func(version string) error { return upd.Apply(version) },
 	}, auto_update.ComponentConfig{
-		Enabled:       s.cfg.Telemt.AutoUpdate.Enabled,
-		CheckInterval: s.cfg.Telemt.AutoUpdate.CheckInterval,
-		AutoApply:     s.cfg.Telemt.AutoUpdate.AutoApply,
+		Enabled:       firstInst.AutoUpdate.Enabled,
+		CheckInterval: firstInst.AutoUpdate.CheckInterval,
+		AutoApply:     firstInst.AutoUpdate.AutoApply,
 	})
 	defer autoMgr.StopAll()
 
@@ -406,7 +512,12 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 
 	// Telemt service restart endpoint
 	mux.Handle("POST /api/telemt/restart", auth.RequireAuth(jwtSecret, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := updater.RestartService(s.cfg.Telemt.ServiceName); err != nil {
+		firstInst := s.getFirstInstance()
+		if firstInst == nil {
+			writeError(w, http.StatusServiceUnavailable, "no_instances", "no Telemt instances configured")
+			return
+		}
+		if err := updater.RestartService(firstInst.ServiceName); err != nil {
 			writeError(w, http.StatusInternalServerError, "restart_failed", err.Error())
 			return
 		}
@@ -415,10 +526,15 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 
 	// Helper: resolve Telemt config path from panel config or Telemt API
 	getTelemtConfigPath := func(w http.ResponseWriter) (string, bool) {
-		if s.cfg.Telemt.ConfigPath != "" {
-			return s.cfg.Telemt.ConfigPath, true
+		firstInst := s.getFirstInstance()
+		if firstInst == nil {
+			writeError(w, http.StatusServiceUnavailable, "no_instances", "no Telemt instances configured")
+			return "", false
 		}
-		systemInfo, err := telemtProxy.GetSystemInfo()
+		if firstInst.ConfigPath != "" {
+			return firstInst.ConfigPath, true
+		}
+		systemInfo, err := s.inst.GetSystemInfo(firstInst.Name)
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "telemt_api_error", err.Error())
 			return "", false
@@ -473,7 +589,12 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 
 		// Restart if requested
 		if req.Restart {
-			if err := updater.RestartService(s.cfg.Telemt.ServiceName); err != nil {
+			firstInst := s.getFirstInstance()
+			if firstInst == nil {
+				writeError(w, http.StatusServiceUnavailable, "no_instances", "no Telemt instances configured")
+				return
+			}
+			if err := updater.RestartService(firstInst.ServiceName); err != nil {
 				writeError(w, http.StatusInternalServerError, "restart_failed", err.Error())
 				return
 			}
@@ -512,7 +633,12 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 
 		// Restart if requested
 		if req.Restart {
-			if err := updater.RestartService(s.cfg.Telemt.ServiceName); err != nil {
+			firstInst := s.getFirstInstance()
+			if firstInst == nil {
+				writeError(w, http.StatusServiceUnavailable, "no_instances", "no Telemt instances configured")
+				return
+			}
+			if err := updater.RestartService(firstInst.ServiceName); err != nil {
 				writeError(w, http.StatusInternalServerError, "restart_failed", err.Error())
 				return
 			}
@@ -569,10 +695,17 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 	})))
 
 	// Logs
-	logStatus := logs.CheckStatus(s.cfg.Telemt.ServiceName, s.cfg.Telemt.ContainerName)
+	firstInst := s.getFirstInstance()
+	serviceName := ""
+	containerName := ""
+	if firstInst != nil {
+		serviceName = firstInst.ServiceName
+		containerName = firstInst.ContainerName
+	}
+	logStatus := logs.CheckStatus(serviceName, containerName)
 	var logsWsHandler http.Handler
 	if logStatus.Available {
-		logSource, err := logs.DetectSource(s.cfg.Telemt.ServiceName, s.cfg.Telemt.ContainerName)
+		logSource, err := logs.DetectSource(serviceName, containerName)
 		if err != nil {
 			log.Printf("WARN: log source init failed: %v", err)
 		} else {
@@ -590,9 +723,6 @@ func (s *Server) Run(version string, distFS fs.FS) error {
 	if logsWsHandler != nil {
 		mux.Handle("/api/ws/logs", auth.RequireAuth(jwtSecret, logsWsHandler))
 	}
-
-	// Telemt API proxy (kept for direct REST calls like user CRUD)
-	mux.Handle("/api/telemt/", auth.RequireAuth(jwtSecret, telemtProxy))
 
 	// SPA
 	mux.Handle("/", spa.NewHandler(distFS, s.cfg.BasePath))

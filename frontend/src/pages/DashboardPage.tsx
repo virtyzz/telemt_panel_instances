@@ -5,7 +5,8 @@ import { ErrorAlert } from '@/components/ErrorAlert';
 import { StartupStatus } from '@/components/StartupStatus';
 import { useWsSubscription, useEndpoint } from '@/hooks/useWebSocket';
 import { usePolling } from '@/hooks/usePolling';
-import { telemt } from '@/lib/api';
+import { telemt, instancesApi } from '@/lib/api';
+import { useCurrentInstance } from '@/hooks/useCurrentInstance';
 import { formatUptime, formatNumber, formatBytes } from '@/lib/utils';
 import { Activity, Wifi, WifiOff, Clock, Users, ArrowUpDown, Globe } from 'lucide-react';
 import { useMemo } from 'react';
@@ -42,15 +43,16 @@ interface UserTrafficData {
 const ENDPOINTS = ['/v1/health', '/v1/stats/summary', '/v1/system/info', '/v1/runtime/gates'];
 
 export function DashboardPage() {
-  const { data: wsData, errors, connected, refresh } = useWsSubscription('dashboard', ENDPOINTS, 5);
+  const { currentInstance, api, hasInstance, loading: instanceLoading } = useCurrentInstance();
+  const { data: wsData, errors, connected, refresh } = useWsSubscription('dashboard', ENDPOINTS, 5, currentInstance || undefined);
 
-  const health = useEndpoint<HealthData>(wsData, '/v1/health');
-  const summary = useEndpoint<SummaryData>(wsData, '/v1/stats/summary');
-  const system = useEndpoint<SystemInfoData>(wsData, '/v1/system/info');
-  const gates = useEndpoint<GatesData>(wsData, '/v1/runtime/gates');
+  const health = useEndpoint<HealthData>(wsData, '/v1/health', currentInstance || undefined);
+  const summary = useEndpoint<SummaryData>(wsData, '/v1/stats/summary', currentInstance || undefined);
+  const system = useEndpoint<SystemInfoData>(wsData, '/v1/system/info', currentInstance || undefined);
+  const gates = useEndpoint<GatesData>(wsData, '/v1/runtime/gates', currentInstance || undefined);
 
   const { data: usersData } = usePolling<UserTrafficData[]>(
-    () => telemt.get('/v1/users'),
+    () => api.get('/v1/users'),
     10000
   );
 
@@ -66,6 +68,18 @@ export function DashboardPage() {
 
   const isHealthy = health?.status === 'ok';
   const firstError = Object.values(errors)[0];
+
+  // Show loading state while instance is being selected
+  if (instanceLoading) {
+    return (
+      <div>
+        <Header title="Dashboard" />
+        <div className="p-4 lg:p-6 flex items-center justify-center">
+          <div className="text-text-secondary">Loading instance data...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -151,7 +165,7 @@ export function DashboardPage() {
         {/* System Info */}
         {system && (
           <div className="bg-surface border border-border rounded-lg p-3 lg:p-4">
-            <h3 className="text-xs lg:text-sm font-medium text-text-secondary mb-2 lg:mb-3">System Info</h3>
+            <h3 className="text-xs lg:text-sm font-medium text-text-secondary mb-2 lg:mb-3">System Info {currentInstance ? `- ${currentInstance}` : ''}</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 lg:gap-3">
               {Object.entries(system).map(([key, value]) => (
                 <div key={key}>

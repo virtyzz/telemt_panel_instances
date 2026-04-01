@@ -7,7 +7,8 @@ import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@/components/ui/table';
 import { usePolling } from '@/hooks/usePolling';
-import { telemt, panelApi } from '@/lib/api';
+import { telemt, panelApi, instancesApi } from '@/lib/api';
+import { useCurrentInstance } from '@/hooks/useCurrentInstance';
 import { formatBytes } from '@/lib/utils';
 import { ArrowLeft, ChevronDown, ChevronRight, Search, AlertTriangle } from 'lucide-react';
 
@@ -204,8 +205,9 @@ function CollapsibleSection({ title, count, defaultOpen, children }: {
 
 export function UserDetailPage() {
   const { username } = useParams<{ username: string }>();
+  const { api } = useCurrentInstance();
   const { data: users, error, loading, refresh } = usePolling<UserInfo[]>(
-    () => telemt.get('/v1/users'),
+    () => api.get('/v1/users'),
     10000
   );
 

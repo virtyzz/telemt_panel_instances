@@ -1,6 +1,7 @@
 import { Header } from '@/components/layout/Header';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { useWsSubscription, useEndpoint } from '@/hooks/useWebSocket';
+import { useCurrentInstance } from '@/hooks/useCurrentInstance';
 import type {
   ConnectionsData, PoolStateData, MeQualityData, UpstreamQualityData,
   NatStunData, MeSelftestData, EventsData, MinimalAllResponse,
@@ -32,18 +33,19 @@ const ENDPOINTS = [
 ];
 
 export function RuntimePage() {
-  const { data: wsData, errors, connected, refresh } = useWsSubscription('runtime', ENDPOINTS, 5);
+  const { currentInstance } = useCurrentInstance();
+  const { data: wsData, errors, connected, refresh } = useWsSubscription('runtime', ENDPOINTS, 5, currentInstance || undefined);
 
-  const gates = useEndpoint<Record<string, unknown>>(wsData, '/v1/runtime/gates');
-  const pool = useEndpoint<PoolStateData>(wsData, '/v1/runtime/me_pool_state');
-  const meQuality = useEndpoint<MeQualityData>(wsData, '/v1/runtime/me_quality');
-  const upstreamQuality = useEndpoint<UpstreamQualityData>(wsData, '/v1/runtime/upstream_quality');
-  const natStun = useEndpoint<NatStunData>(wsData, '/v1/runtime/nat_stun');
-  const meSelftest = useEndpoint<MeSelftestData>(wsData, '/v1/runtime/me-selftest');
-  const connections = useEndpoint<ConnectionsData>(wsData, '/v1/runtime/connections/summary');
-  const events = useEndpoint<EventsData>(wsData, '/v1/runtime/events/recent');
-  const zeroAll = useEndpoint<Record<string, unknown>>(wsData, '/v1/stats/zero/all');
-  const minimalAll = useEndpoint<MinimalAllResponse>(wsData, '/v1/stats/minimal/all');
+  const gates = useEndpoint<Record<string, unknown>>(wsData, '/v1/runtime/gates', currentInstance || undefined);
+  const pool = useEndpoint<PoolStateData>(wsData, '/v1/runtime/me_pool_state', currentInstance || undefined);
+  const meQuality = useEndpoint<MeQualityData>(wsData, '/v1/runtime/me_quality', currentInstance || undefined);
+  const upstreamQuality = useEndpoint<UpstreamQualityData>(wsData, '/v1/runtime/upstream_quality', currentInstance || undefined);
+  const natStun = useEndpoint<NatStunData>(wsData, '/v1/runtime/nat_stun', currentInstance || undefined);
+  const meSelftest = useEndpoint<MeSelftestData>(wsData, '/v1/runtime/me-selftest', currentInstance || undefined);
+  const connections = useEndpoint<ConnectionsData>(wsData, '/v1/runtime/connections/summary', currentInstance || undefined);
+  const events = useEndpoint<EventsData>(wsData, '/v1/runtime/events/recent', currentInstance || undefined);
+  const zeroAll = useEndpoint<Record<string, unknown>>(wsData, '/v1/stats/zero/all', currentInstance || undefined);
+  const minimalAll = useEndpoint<MinimalAllResponse>(wsData, '/v1/stats/minimal/all', currentInstance || undefined);
 
   const firstError = Object.values(errors)[0];
 
