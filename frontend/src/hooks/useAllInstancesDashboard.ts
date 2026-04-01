@@ -87,7 +87,7 @@ export function useAllInstancesDashboard(): {
 
         return {
           name: instanceName,
-          healthy: healthRes?.status === 'ok' ?? false,
+          healthy: (healthRes?.status === 'ok') || false,
           health: healthRes,
           summary: summaryRes,
           system: systemRes,
