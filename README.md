@@ -32,19 +32,22 @@ Web-панель управления для [Telemt](https://github.com/telemt/
 |:---------:|:-----:|:-------:|
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Users](docs/screenshots/users.png) | ![Runtime](docs/screenshots/runtime.png) |
 
+> **Примечание:** Новые виды "All Instances Dashboard" и "All Instances Users" показывают сводную информацию по всем экземплярам Telemt на одной странице.
+
 ## Возможности
 
 - **Несколько экземпляров Telemt** — управление и мониторинг нескольких серверов Telemt из одного интерфейса с быстрым переключением между ними
-- **Dashboard** — здоровье сервера, uptime, соединения, общий трафик, статус DC
-- **Пользователи** — CRUD через API Telemt, сортировка по колонкам, подсветка активных соединений
+- **Dashboard** — здоровье сервера, uptime, соединения, общий трафик, статус DC, просмотр всех экземпляров одновременно (All Instances view)
+- **Пользователи** — CRUD через API Telemt, сортировка по колонкам, подсветка активных соединений, просмотр всех пользователей со всех экземпляров (All Instances view)
 - **Runtime** — соединения, ME pool state, ME quality, upstream quality, NAT/STUN, self-test, события
 - **Безопасность** — posture (read-only, whitelist, auth header), лимиты, whitelist
 - **Upstreams** — статус upstream-серверов и пулов
 - **Обновления** — проверка новой версии на GitHub, обновление бинарника в один клик с откатом при ошибке (Telemt и панель)
 - **TLS** — поддержка custom-сертификатов и автоматического Let's Encrypt (ACME)
 - **GeoIP** — определение геолокации по IP через MaxMind GeoLite2
-- **WebSocket** — реалтайм обновление данных без перезагрузки страницы
+- **WebSocket** — реалтайм обновление данных без перезагрузки страницы, поддержка multi-instance
 - **Base Path** — поддержка запуска за reverse proxy на подпути
+- **Persistent View Mode** — запоминание выбранного режима просмотра (Single/All) в localStorage
 
 ## Требования
 
@@ -323,6 +326,36 @@ telemt-panel version                 # показать версию
 - `GET /api/instances/Frankfurt/v1/stats/summary` — получить статистику для экземпляра "Frankfurt"
 
 **Legacy-эндпоинт:** `/api/telemt/...` по-прежнему работает и использует первый экземпляр из конфигурации.
+
+### WebSocket API
+
+WebSocket-эндпоинт `/api/ws` поддерживает подписку на данные с нескольких экземпляров одновременно:
+
+**Формат сообщения клиента:**
+```json
+{
+  "type": "subscribe",
+  "endpoints": [
+    "/v1/health",                    // legacy: первый экземпляр
+    "Moscow:/v1/stats/summary",      // конкретный экземпляр
+    "Amsterdam:/v1/health"           // конкретный экземпляр
+  ],
+  "interval": 5
+}
+```
+
+**Формат сообщения сервера:**
+```json
+{
+  "type": "data",
+  "endpoint": "/v1/stats/summary",
+  "instance": "Moscow",
+  "data": { ... },
+  "timestamp": 1234567890
+}
+```
+
+Если `instance` не указан в запросе клиента, используется первый экземпляр из конфигурации.
 
 ## Стек
 
